@@ -3,32 +3,43 @@
 #include <sys/socket.h>   // For socket functions like socket(), bind(), listen(), accept()
 #include <netinet/in.h>   // Contains sockaddr_in struct (Internet address)
 #include <cstring>        // For memset() to initialize memory to 0
+#include <sstream>   // For stringstream and istringstream
+#include <fstream>   // For ifstream (file input)
 
 // Define the port the server will run on (you can change this if needed)
 #define SERVER_PORT 8080
 
 // Function to handle the client's HTTP request and send a response
 void handle_client_request(int client_socket) {
-    char received_data[1024] = {0};  // Buffer to store received data (up to 1024 bytes)
+    char buffer[2048] = {0};  
+    read(client_socket, buffer, 2048);  
+    std::cout << "Client request:\n" << buffer << std::endl;
 
-    // Step 1: Read the data sent by the client
-    read(client_socket, received_data, 1024);  // Reads from the socket into the buffer
+    std::istringstream request(buffer);
+    std::string method, path, version;
+    request >> method >> path >> version;
 
-    // Display the received request in the console (for debugging purposes)
-    std::cout << "Client request:\n" << received_data << std::endl;
+    std::string response;
 
-    // Step 2: Prepare the HTTP response (a simple "200 OK" response with plain text)
-    std::string http_response = 
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/plain\r\n"
-        "\r\n"
-        "Hello, this is your server response!";  // Custom message
+    // Check if it's a GET request and the path is the root "/"
+    if (method == "GET" && path == "/") {
+        // Serve the index.html file
+        std::ifstream file("index.html");  // Open the file
+        if (file) {
+            std::stringstream file_content;
+            file_content << file.rdbuf();  // Read file content
+            response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + file_content.str();
+        } else {
+            response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\nFile not found!";
+        }
+    } else {
+        response = "HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/plain\r\n\r\nMethod not supported!";
+    }
 
-    // Step 3: Send the HTTP response back to the client
-    send(client_socket, http_response.c_str(), http_response.length(), 0);
-
-    // Step 4: Close the client connection after sending the response
+    // Send the response to the client
+    send(client_socket, response.c_str(), response.length(), 0);
     close(client_socket);
+
 }
 
 int main() {
