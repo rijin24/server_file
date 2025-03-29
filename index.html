@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Page</title>
+    <title>Message to Server</title>
 </head>
 <body>
-    <h1>Hello, this is your server response!</h1>
+    <h2>Send a Message to the Server</h2>
+    <form action="/" method="POST">
+        <label for="message">Enter your message:</label>
+        <input type="text" id="message" name="message" required>
+        <button type="submit">Send</button>
+    </form>
 </body>
 </html>

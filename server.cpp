@@ -5,42 +5,89 @@
 #include <cstring>        // For memset() to initialize memory to 0
 #include <sstream>   // For stringstream and istringstream
 #include <fstream>   // For ifstream (file input)
+#include <algorithm>
 
 // Define the port the server will run on (you can change this if needed)
 #define SERVER_PORT 8080
 
 // Function to handle the client's HTTP request and send a response
 void handle_client_request(int client_socket) {
-    char buffer[2048] = {0};  
-    read(client_socket, buffer, 2048);  
-    std::cout << "Client request:\n" << buffer << std::endl;
+    char buffer[4096] = {0}; 
+    recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+
+    std::cout << "Received Request:\n" << buffer << std::endl;  // Debug: Log raw request
 
     std::istringstream request(buffer);
     std::string method, path, version;
     request >> method >> path >> version;
 
-    std::string response;
+    std::cout << "Method: " << method << "\n";  // Debug: Check extracted method
 
-    // Check if it's a GET request and the path is the root "/"
-    if (method == "GET" && path == "/") {
-        // Serve the index.html file
-        std::ifstream file("index.html");  // Open the file
-        if (file) {
-            std::stringstream file_content;
-            file_content << file.rdbuf();  // Read file content
-            response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + file_content.str();
+        if (method == "POST") {
+        // Find the body (data sent after the headers)
+        std::string body;
+        std::string header(buffer);
+        size_t body_pos = header.find("\r\n\r\n");
+
+        if (body_pos != std::string::npos) {
+            body = header.substr(body_pos + 4); // Get everything after the headers
+
+            std::replace(body.begin(), body.end(), '+', ' ');
+            // Save the message to a file
+            std::string message;
+            size_t pos = body.find("message="); 
+            if (pos != std::string::npos) {
+                message = body.substr(pos + 8);
+            }
+
+            // Save the message to a file
+            std::ofstream outFile("messages.txt", std::ios::app);
+            if (outFile) {
+                outFile << message << std::endl; 
+            }
+            outFile.close();
+
+            // Send a response to the client
+            std::string response = 
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                "Content-Length: 20\r\n"
+                "\r\n"
+                "Message receiveddd!";
+            send(client_socket, response.c_str(), response.length(), 0);
         } else {
-            response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\nFile not found!";
+            // If the body is missing or there's an issue with the request
+            std::string response = "HTTP/1.1 400 Bad Request\r\n\r\nNo body found in POST request!";
+            send(client_socket, response.c_str(), response.length(), 0);
+        }
+
+    } else if (method == "GET") {
+        std::ifstream file("index.html");
+        if (!file) {
+            std::string response = "HTTP/1.1 404 Not Found\r\n\r\nFile not found!";
+            send(client_socket, response.c_str(), response.length(), 0);
+        } else {
+            std::stringstream file_content;
+            file_content << file.rdbuf();
+            file.close();
+            std::string response =
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/html\r\n"
+                "Content-Length: " + std::to_string(file_content.str().size()) + "\r\n"
+                "\r\n" +
+                file_content.str();
+            send(client_socket, response.c_str(), response.length(), 0);
         }
     } else {
-        response = "HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/plain\r\n\r\nMethod not supported!";
+        std::cout << "Unsupported method detected: " << method << std::endl;  // Debug
+        std::string response = "HTTP/1.1 405 Method Not Allowed\r\n\r\nMethod not supporting!";
+        send(client_socket, response.c_str(), response.length(), 0);
     }
 
-    // Send the response to the client
-    send(client_socket, response.c_str(), response.length(), 0);
     close(client_socket);
-
 }
+
+
 
 int main() {
     int server_socket, client_socket;  
